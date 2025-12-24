@@ -3,10 +3,11 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
+    "start": "npm run auto-push && expo start",
+    "auto-push": "git add . && git commit -m \"Auto-update\" || echo \"No changes to commit\" && git push",
+    "android": "npm run auto-push && expo start --android",
+    "ios": "npm run auto-push && expo start --ios",
+    "web": "npm run auto-push && expo start --web"
   },
   "dependencies": {
     "@react-navigation/bottom-tabs": "^7.9.0",
