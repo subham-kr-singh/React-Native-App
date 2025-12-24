@@ -1,4 +1,9 @@
+import 'react-native-gesture-handler';
 import { registerRootComponent } from 'expo';
+
+const TextEncodingPolyfill = require('text-encoding');
+global.TextEncoder = TextEncodingPolyfill.TextEncoder;
+global.TextDecoder = TextEncodingPolyfill.TextDecoder;
 
 import App from './App';
 
