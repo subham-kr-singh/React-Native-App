@@ -1,18 +1,21 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, Alert, TextInput } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-
+import { ScreenWrapper } from '../../components/ui/ScreenWrapper';
+import { GlassCard } from '../../components/ui/GlassCard';
+import { GlassButton } from '../../components/ui/GlassButton';
+import { appleTheme } from '../../components/ui/AppleTheme';
+import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useAuth } from '../../context/AuthContext';
-import { getDriverSchedule, broadcastLocation } from '../../api/driver';
+import { driverAPI } from '../../services/api';
+const { getTodaySchedule: getDriverSchedule, updateLocation: broadcastLocation } = driverAPI;
 
 export default function DriverDashboardScreen() {
-    const { logout, userToken, isDemo } = useAuth();
+    const { logout, isDemo } = useAuth();
     const [schedule, setSchedule] = useState(null);
     const [loading, setLoading] = useState(true);
     const [isTripActive, setIsTripActive] = useState(false);
     const [locationSubscription, setLocationSubscription] = useState(null);
-
     const [busNumber, setBusNumber] = useState('');
 
     useEffect(() => {
@@ -66,9 +69,6 @@ export default function DriverDashboardScreen() {
         }
 
         setIsTripActive(true);
-
-
-        // Start watching position
         const sub = await Location.watchPositionAsync(
             {
                 accuracy: Location.Accuracy.High,
@@ -80,7 +80,6 @@ export default function DriverDashboardScreen() {
                 broadcastLocation(schedule.id, latitude, longitude, speed, busNumber);
             }
         );
-
         setLocationSubscription(sub);
     };
 
@@ -93,53 +92,57 @@ export default function DriverDashboardScreen() {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
+        <ScreenWrapper edges={['top', 'left', 'right']}>
             <View style={styles.header}>
-                <Text style={styles.title}>Driver Dashboard</Text>
+                <View>
+                    <Text style={styles.title}>Driver Dashboard</Text>
+                    <Text style={styles.subtext}>Welcome back, Captain</Text>
+                </View>
                 <TouchableOpacity onPress={logout} style={styles.logoutButton}>
-                    <Text style={styles.logoutText}>Logout</Text>
+                    <Ionicons name="log-out-outline" size={24} color={theme.colors.danger} />
                 </TouchableOpacity>
             </View>
 
             <View style={styles.content}>
                 {loading ? (
-                    <ActivityIndicator size="large" color="#3b82f6" />
+                    <ActivityIndicator size="large" color={theme.colors.primary} />
                 ) : schedule ? (
-                    <View style={styles.card}>
-                        <Text style={styles.cardTitle}>Today's Schedule</Text>
+                    <GlassCard style={styles.card} intensity={20}>
+                        <Text style={styles.cardTitle}>Today's Assignment</Text>
+                        
                         <View style={styles.row}>
-                            <Text style={styles.label}>Route:</Text>
+                            <Text style={styles.label}>Route</Text>
                             <Text style={styles.value}>{schedule.routeName || 'Route 101'}</Text>
                         </View>
+                        
                         <View style={styles.row}>
-                            <Text style={styles.label}>Bus:</Text>
+                            <Text style={styles.label}>Bus No.</Text>
                             {isTripActive ? (
                                 <Text style={styles.value}>{busNumber}</Text>
                             ) : (
                                 <TextInput
                                     style={styles.input}
                                     placeholder="Enter Bus No"
+                                    placeholderTextColor={theme.colors.text.muted}
                                     value={busNumber}
                                     onChangeText={setBusNumber}
                                 />
                             )}
                         </View>
+                        
                         <View style={styles.row}>
-                            <Text style={styles.label}>Time:</Text>
+                            <Text style={styles.label}>Departure</Text>
                             <Text style={styles.value}>{schedule.startTime || '08:00 AM'}</Text>
                         </View>
 
-                        <TouchableOpacity
-                            style={[
-                                styles.actionButton,
-                                isTripActive ? styles.stopButton : styles.startButton
-                            ]}
+                        <View style={styles.spacer} />
+
+                        <GlassButton 
+                            title={isTripActive ? "STOP TRIP" : "START TRIP"}
                             onPress={isTripActive ? stopTrip : startTrip}
-                        >
-                            <Text style={styles.actionButtonText}>
-                                {isTripActive ? 'STOP TRIP' : 'START TRIP'}
-                            </Text>
-                        </TouchableOpacity>
+                            variant={isTripActive ? 'danger' : 'primary'}
+                            style={isTripActive ? { backgroundColor: theme.colors.danger } : {}}
+                        />
 
                         {isTripActive && (
                             <View style={styles.liveIndicator}>
@@ -147,168 +150,108 @@ export default function DriverDashboardScreen() {
                                 <Text style={styles.liveText}>Broadcasting Location...</Text>
                             </View>
                         )}
-
-                    </View>
+                    </GlassCard>
                 ) : (
                     <View style={styles.emptyState}>
                         <Text style={styles.emptyText}>No schedule assigned for today.</Text>
-                        <TouchableOpacity style={styles.refreshButton} onPress={fetchSchedule}>
-                            <Text style={styles.refreshText}>Refresh</Text>
-                        </TouchableOpacity>
+                        <GlassButton title="Refresh" onPress={fetchSchedule} variant="secondary" />
                     </View>
                 )}
             </View>
-        </SafeAreaView>
+        </ScreenWrapper>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#f1f5f9',
-    },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: 24,
-        backgroundColor: 'white',
-        borderBottomWidth: 1,
-        borderBottomColor: '#e2e8f0',
+        paddingHorizontal: appleTheme.spacing.l,
+        paddingTop: appleTheme.spacing.xl,
+        paddingBottom: appleTheme.spacing.m,
     },
     title: {
-        fontSize: 24,
-        fontWeight: '800',
-        color: '#0f172a',
-        letterSpacing: -0.5,
+        ...appleTheme.typography.largeTitle,
+        color: appleTheme.colors.text.primary,
+    },
+    subtext: {
+        ...appleTheme.typography.subhead,
+        color: appleTheme.colors.text.secondary,
+        marginTop: 4,
     },
     logoutButton: {
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        backgroundColor: '#fee2e2',
-        borderRadius: 20,
-    },
-    logoutText: {
-        color: '#ef4444',
-        fontWeight: '700',
-        fontSize: 14,
+        padding: 8,
+        backgroundColor: 'rgba(255, 59, 48, 0.1)', // iOS Red tint
+        borderRadius: appleTheme.borderRadius.round,
     },
     content: {
         flex: 1,
-        padding: 20,
+        padding: appleTheme.spacing.l,
     },
     card: {
-        backgroundColor: 'white',
-        padding: 24,
-        borderRadius: 24,
-        shadowColor: '#64748b',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-        elevation: 4,
+        // GlassCard handles the base style now
     },
     cardTitle: {
-        fontSize: 20,
-        fontWeight: '700',
-        marginBottom: 24,
-        color: '#1e293b',
-        borderBottomWidth: 1,
-        borderBottomColor: '#f1f5f9',
-        paddingBottom: 16,
+        ...appleTheme.typography.title2,
+        color: appleTheme.colors.text.primary,
+        marginBottom: appleTheme.spacing.l,
     },
     row: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 16,
-        paddingBottom: 0,
-        borderBottomWidth: 0,
+        paddingVertical: appleTheme.spacing.m,
+        borderBottomWidth: 1,
+        borderBottomColor: appleTheme.colors.border,
     },
     label: {
-        color: '#64748b',
-        fontSize: 16,
-        fontWeight: '500',
+        ...appleTheme.typography.body,
+        color: appleTheme.colors.text.secondary,
     },
     value: {
-        color: '#0f172a',
-        fontSize: 18,
-        fontWeight: '600',
+        ...appleTheme.typography.headline,
+        color: appleTheme.colors.text.primary,
     },
-    actionButton: {
-        marginTop: 32,
-        paddingVertical: 20,
-        borderRadius: 16,
+    input: {
+        ...appleTheme.typography.headline,
+        color: appleTheme.colors.primary,
+        textAlign: 'right',
+        minWidth: 150,
+        paddingVertical: 4,
+    },
+    spacer: {
+        height: appleTheme.spacing.xl,
+    },
+    liveIndicator: {
+        flexDirection: 'row',
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-        elevation: 6,
+        justifyContent: 'center',
+        marginTop: appleTheme.spacing.l,
+        backgroundColor: 'rgba(52, 199, 89, 0.1)', // iOS Green tint
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        borderRadius: appleTheme.borderRadius.l,
     },
-    startButton: {
-        backgroundColor: '#22c55e',
+    liveDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: appleTheme.colors.success,
+        marginRight: 8,
     },
-    stopButton: {
-        backgroundColor: '#ef4444',
-    },
-    actionButtonText: {
-        color: 'white',
-        fontSize: 20,
-        fontWeight: '800',
-        letterSpacing: 1,
-        textTransform: 'uppercase',
+    liveText: {
+        ...appleTheme.typography.subhead,
+        color: appleTheme.colors.success,
+        fontWeight: '600',
     },
     emptyState: {
         alignItems: 'center',
         marginTop: 60,
     },
     emptyText: {
-        color: '#94a3b8',
-        fontSize: 16,
+        ...appleTheme.typography.body,
+        color: appleTheme.colors.text.secondary,
         marginBottom: 24,
     },
-    refreshButton: {
-        paddingVertical: 12,
-        paddingHorizontal: 24,
-        backgroundColor: 'white',
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#bfdbfe',
-    },
-    refreshText: {
-        color: '#2563eb',
-        fontWeight: '600',
-    },
-    liveIndicator: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginTop: 24,
-        backgroundColor: '#fef2f2',
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        borderRadius: 20,
-        alignSelf: 'center',
-    },
-    liveDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: '#ef4444',
-        marginRight: 8,
-    },
-    liveText: {
-        color: '#ef4444',
-        fontWeight: '700',
-        letterSpacing: 0.5
-    },
-    input: {
-        borderBottomWidth: 1,
-        borderBottomColor: '#cbd5e1',
-        minWidth: 120,
-        fontSize: 18,
-        color: '#0f172a',
-        paddingVertical: 4,
-        textAlign: 'right'
-    }
 });

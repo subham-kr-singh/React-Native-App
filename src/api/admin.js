@@ -12,17 +12,28 @@ export const getBuses = async () => {
 
 export const addBus = async (busData) => {
     try {
-        // Backend expects: { busNumber, capacity, status }
-        // We filter out any extra fields like routeNumber here just in case
-        const payload = {
-            busNumber: busData.busNumber,
-            capacity: busData.capacity || 40,
-            status: busData.status || 'IDLE'
-        };
-        const response = await client.post('/api/admin/buses', payload);
+        const response = await client.post('/api/admin/buses', busData);
         return response.data;
     } catch (error) {
-        throw error.response ? error.response.data : error;
+        throw error;
+    }
+};
+
+export const getRoutes = async () => {
+    try {
+        const response = await client.get('/api/admin/routes');
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+};
+
+export const createSchedule = async (routeId, busId, direction = "OUTBOUND") => {
+    try {
+        const response = await client.post('/api/admin/schedules', { routeId, busId, direction });
+        return response.data;
+    } catch (error) {
+        throw error;
     }
 };
 
@@ -31,7 +42,6 @@ export const assignBusToSchedule = async (scheduleId, busId) => {
         const response = await client.put(`/api/admin/schedules/${scheduleId}`, { busId });
         return response.data;
     } catch (error) {
-        throw error.response ? error.response.data : error;
+        throw error;
     }
 };
-

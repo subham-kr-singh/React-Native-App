@@ -4,22 +4,21 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, ActivityIndicator } from 'react-native';
 
 import { useAuth } from '../context/AuthContext';
-import LoginScreen from '../screens/auth/LoginScreen';
-import StudentHomeScreen from '../screens/student/StudentHomeScreen';
-
-import DriverDashboardScreen from '../screens/driver/DriverDashboardScreen';
-import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
-
+import LoginScreen from '../screens/LoginScreen'; 
+import StudentNavigator from './StudentNavigator';
+import DriverNavigator from './DriverNavigator';
+import AdminNavigator from './AdminNavigator';
+import { theme } from '../components/ui/theme';
 
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
-    const { userToken, userRole, isLoading } = useAuth();
+    const { token, role, isLoading } = useAuth();
 
     if (isLoading) {
         return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <ActivityIndicator size="large" color="#3b82f6" />
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.background }}>
+                <ActivityIndicator size="large" color={theme.colors.primary} />
             </View>
         );
     }
@@ -27,19 +26,18 @@ export default function AppNavigator() {
     return (
         <NavigationContainer>
             <Stack.Navigator screenOptions={{ headerShown: false }}>
-                {userToken == null ? (
+                {!token ? (
                     // No token found, user isn't signed in
                     <Stack.Screen name="Login" component={LoginScreen} />
                 ) : (
                     // User is signed in
-                    userRole === 'STUDENT' ? (
-                        <Stack.Screen name="StudentHome" component={StudentHomeScreen} />
-                    ) : userRole === 'DRIVER' ? (
-                        <Stack.Screen name="DriverDashboard" component={DriverDashboardScreen} />
-                    ) : userRole === 'ADMIN' ? (
-                        <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
+                    role === 'STUDENT' ? (
+                        <Stack.Screen name="StudentStack" component={StudentNavigator} />
+                    ) : role === 'DRIVER' ? (
+                        <Stack.Screen name="DriverStack" component={DriverNavigator} />
+                    ) : role === 'ADMIN' ? (
+                        <Stack.Screen name="AdminStack" component={AdminNavigator} />
                     ) : (
-
                         // Fallback
                         <Stack.Screen name="Login" component={LoginScreen} />
                     )

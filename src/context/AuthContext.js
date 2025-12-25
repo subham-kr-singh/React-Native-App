@@ -1,95 +1,77 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import * as SecureStore from 'expo-secure-store';
-import { login as loginApi } from '../api/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authAPI } from '../services/api';
 
 const AuthContext = createContext();
 
+export const useAuth = () => {
+    return useContext(AuthContext);
+};
+
 export const AuthProvider = ({ children }) => {
-    const [userToken, setUserToken] = useState(null);
-    const [userRole, setUserRole] = useState(null);
-    const [isDemo, setIsDemo] = useState(false);
+    const [role, setRole] = useState(null);
+    const [token, setToken] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    const login = async (email, password) => {
-        setIsLoading(true);
+    useEffect(() => {
+        loadStorageData();
+    }, []);
+
+    const loadStorageData = async () => {
         try {
-            const data = await loginApi(email, password);
-            const token = data.token || data.accessToken;
-            const role = data.role;
+            const storedRole = await AsyncStorage.getItem('role');
+            const storedToken = await AsyncStorage.getItem('token');
 
-            if (token && role) {
-                setUserToken(token);
-                setUserRole(role);
-                setIsDemo(false);
-                await SecureStore.setItemAsync('userToken', token);
-                await SecureStore.setItemAsync('userRole', role);
-                await SecureStore.deleteItemAsync('isAppDemoMode'); // Clear demo flag
-            } else {
-                throw new Error("Invalid response from server");
+            if (storedRole && storedToken) {
+                setRole(storedRole);
+                setToken(storedToken);
             }
-
-            setIsLoading(false);
         } catch (e) {
+            console.error("Failed to load auth data", e);
+        } finally {
             setIsLoading(false);
-            if (e.message.includes("503") || e.message.includes("Network")) {
-                Alert.alert("Server Unavailable", "The backend server appears to be down. Try Demo Mode.");
-            } else {
-                throw e;
-            }
         }
     };
 
-    const loginDemo = async (role) => {
-        setIsLoading(true);
-        const token = "demo-token-" + Math.random().toString(36).substr(2);
-        setUserToken(token);
-        setUserRole(role);
-        setIsDemo(true);
-        await SecureStore.setItemAsync('userToken', token);
-        await SecureStore.setItemAsync('userRole', role);
-        await SecureStore.setItemAsync('isAppDemoMode', 'true');
-        setIsLoading(false);
+    const login = async (email, password) => {
+        try {
+            const data = await authAPI.login(email, password);
+            
+            // Response: { accessToken: "...", role: "..." }
+            if (data && data.accessToken && data.role) {
+                setRole(data.role);
+                setToken(data.accessToken);
+                await AsyncStorage.setItem('token', data.accessToken);
+                await AsyncStorage.setItem('role', data.role);
+                return { success: true };
+            } else {
+                 console.log("Invalid response structure:", data); // Debug log
+                 return { success: false, msg: 'Invalid server response' };
+            }
+        } catch (error) {
+            console.error('Login error helper:', error);
+            let message = 'Login failed';
+            if (!error.response) {
+                message = 'Server not responding. Please check your internet or if the backend is UP.';
+            } else if (error.response.status === 401 || error.response.status === 403) {
+                message = 'Invalid email or password';
+            } else if (error.response.data?.message) {
+                message = error.response.data.message;
+            }
+            return { success: false, msg: message };
+        }
     };
 
     const logout = async () => {
-        setIsLoading(true);
-        setUserToken(null);
-        setUserRole(null);
-        setIsDemo(false);
-        await SecureStore.deleteItemAsync('userToken');
-        await SecureStore.deleteItemAsync('userRole');
-        await SecureStore.deleteItemAsync('isAppDemoMode');
-        setIsLoading(false);
+        setRole(null);
+        setToken(null);
+        await AsyncStorage.removeItem('token');
+        await AsyncStorage.removeItem('role');
     };
-
-    const isLoggedIn = async () => {
-        try {
-            setIsLoading(true);
-            let token = await SecureStore.getItemAsync('userToken');
-            let role = await SecureStore.getItemAsync('userRole');
-            let demo = await SecureStore.getItemAsync('isAppDemoMode');
-
-            if (token && role) {
-                setUserToken(token);
-                setUserRole(role);
-                if (demo === 'true') setIsDemo(true);
-            }
-            setIsLoading(false);
-        } catch (e) {
-            console.log(`Login Error ${e}`);
-            setIsLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        isLoggedIn();
-    }, []);
 
     return (
-        <AuthContext.Provider value={{ login, loginDemo, logout, isLoading, userToken, userRole, isDemo }}>
+        <AuthContext.Provider value={{ role, token, isLoading, login, logout }}>
             {children}
         </AuthContext.Provider>
     );
 };
-
-export const useAuth = () => useContext(AuthContext);

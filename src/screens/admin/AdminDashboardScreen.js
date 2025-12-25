@@ -1,213 +1,245 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, FlatList, TouchableOpacity, ActivityIndicator, Alert, TextInput, Modal } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-
+import { StyleSheet, View, Text, FlatList, TouchableOpacity, ActivityIndicator, Alert, Modal, TextInput, SafeAreaView } from 'react-native';
+import { theme } from '../../components/ui/theme';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
-import { getBuses, addBus, assignBusToSchedule } from '../../api/admin';
+import { adminAPI } from '../../services/api';
+const { getBuses, getRoutes, createSchedule, addBus } = adminAPI;
+import { BlurView } from 'expo-blur';
+import { StatusBar } from 'expo-status-bar';
 
 export default function AdminDashboardScreen() {
-    const { logout, isDemo } = useAuth();
+    const { logout } = useAuth();
+    const [activeTab, setActiveTab] = useState('routes'); // 'routes' or 'buses'
+    const [items, setItems] = useState([]);
     const [buses, setBuses] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [modalVisible, setModalVisible] = useState(false);
+    
+    // Modal State
+    const [assignModalVisible, setAssignModalVisible] = useState(false);
+    const [selectedRoute, setSelectedRoute] = useState(null);
+    const [selectedBusId, setSelectedBusId] = useState(null);
+
+    // Add Bus Modal State
+    const [addBusModalVisible, setAddBusModalVisible] = useState(false);
     const [newBusNumber, setNewBusNumber] = useState('');
-    const [newRouteNumber, setNewRouteNumber] = useState('');
 
     useEffect(() => {
-        fetchBuses();
-    }, []);
+        fetchData();
+        if (activeTab === 'routes') {
+            fetchBusesOnly();
+        }
+    }, [activeTab]);
 
-    const fetchBuses = async () => {
+    const fetchData = async () => {
+        setLoading(true);
         try {
-            setLoading(true);
-            if (isDemo) {
-                // Mock Data
-                setBuses([
-                    { id: 1, busNumber: 'MP04-101', capacity: 40, status: 'IDLE' },
-                    { id: 2, busNumber: 'MP04-202', capacity: 40, status: 'ACTIVE' },
-                ]);
-                setLoading(false);
-                return;
+            if (activeTab === 'routes') {
+                const data = await getRoutes();
+                setItems(data);
+            } else {
+                await fetchBusesOnly();
             }
-
-            const data = await getBuses();
-            setBuses(data);
-        } catch (error) {
-            console.log(error);
-            Alert.alert('Error', 'Could not fetch buses');
+        } catch (e) {
+            console.error(e);
+            Alert.alert("Error", "Check server connectivity");
         } finally {
             setLoading(false);
         }
     };
 
-    const handleSaveBus = async () => {
-        if (!newBusNumber) {
-            Alert.alert("Error", "Please fill required fields");
-            return;
-        }
-
-        if (isDemo) {
-            const newBus = {
-                id: Math.random(),
-                busNumber: newBusNumber,
-                capacity: 40,
-                status: 'IDLE'
-            };
-            setBuses([...buses, newBus]);
-            Alert.alert("Success", "Bus added (Demo)");
-            setModalVisible(false);
-            resetForm();
-            return;
-        }
-
+    const fetchBusesOnly = async () => {
         try {
-            const busData = {
-                busNumber: newBusNumber,
-                capacity: 40, // Default capacity
-                status: 'IDLE'
-            };
-
-            await addBus(busData);
-            Alert.alert("Success", "Bus added successfully");
-
-            setModalVisible(false);
-            resetForm();
-            fetchBuses();
+            const data = await getBuses();
+            setBuses(data);
+            if (activeTab === 'buses') setItems(data);
         } catch (e) {
-            Alert.alert("Error", "Failed to add bus");
+            console.error("Failed to fetch buses");
         }
     };
 
-    const openAddModal = () => {
-        setNewBusNumber('');
-        setNewRouteNumber('');
-        setModalVisible(true);
+    const handleAssign = async () => {
+        if (!selectedRoute || !selectedBusId) return;
+        try {
+            await createSchedule(selectedRoute.id, selectedBusId, selectedRoute.direction);
+            Alert.alert("Success", "Bus assigned to route");
+            setAssignModalVisible(false);
+            fetchData();
+        } catch (e) {
+            Alert.alert("Error", "Fail to assign");
+        }
     };
 
-    const resetForm = () => {
-        setNewBusNumber('');
-        setNewRouteNumber('');
+    const handleAddBus = async () => {
+        if (!newBusNumber) return;
+        try {
+            await addBus({ busNumber: newBusNumber, capacity: 40, status: 'IDLE' });
+            setAddBusModalVisible(false);
+            setNewBusNumber('');
+            fetchBusesOnly();
+        } catch (e) {
+            Alert.alert("Error", "Fail to add bus");
+        }
     };
 
-
-    /* Assign Button */
-    const handleAssignBus = async (busId) => {
-        Alert.prompt(
-            "Assign to Schedule",
-            "Enter Schedule ID:",
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Assign",
-                    onPress: async (scheduleId) => {
-                        try {
-                            if (isDemo) {
-                                Alert.alert("Success", `Bus ${busId} assigned to Schedule ${scheduleId} (Demo)`);
-                                return;
-                            }
-                            await assignBusToSchedule(scheduleId, busId);
-                            Alert.alert("Success", `Bus ${busId} assigned to Schedule ${scheduleId}`);
-                            fetchBuses(); // Refresh to see status changes if any
-                        } catch (e) {
-                            Alert.alert("Error", e.message || "Failed to assign bus");
-                        }
-                    }
-                }
-            ],
-            "plain-text"
-        );
-    };
-
-    const renderBusItem = ({ item }) => (
-        <View style={styles.card}>
-            <View style={styles.cardHeader}>
-                <View style={styles.busIconContainer}>
-                    <Text style={styles.busIcon}>🚌</Text>
-                </View>
-                <View style={styles.busInfo}>
-                    <Text style={styles.busNumber}>{item.busNumber}</Text>
-                    <Text style={styles.busSubtext}>Capacity: {item.capacity} • ID: {item.id}</Text>
-                </View>
-                <View style={[styles.statusBadge, item.status === 'ACTIVE' ? styles.statusActive : styles.statusInactive]}>
-                    <Text style={styles.statusText}>{item.status || 'IDLE'}</Text>
-                </View>
+    const renderHeader = () => (
+        <View style={styles.header}>
+            <View>
+                <Text style={styles.title}>Network Intelligence</Text>
+                <Text style={styles.subtitle}>Traffic Control Hub • Online</Text>
             </View>
-
-            <TouchableOpacity style={styles.assignButton} onPress={() => handleAssignBus(item.id)}>
-                <Text style={styles.assignButtonText}>Assign to Schedule</Text>
+            <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
+                <Ionicons name="power" size={20} color={theme.colors.error} />
             </TouchableOpacity>
         </View>
     );
 
+    const renderStats = () => (
+        <View style={styles.statsRow}>
+            <BlurView intensity={10} tint="dark" style={styles.statCard}>
+                <Ionicons name="git-network-outline" size={20} color={theme.colors.primary} />
+                <Text style={styles.statVal}>{items.length}</Text>
+                <Text style={styles.statLab}>{activeTab === 'routes' ? 'ACTIVE ROUTES' : 'TOTAL BUSES'}</Text>
+            </BlurView>
+            <BlurView intensity={10} tint="dark" style={styles.statCard}>
+                <Ionicons name="pulse" size={20} color={theme.colors.success} />
+                <Text style={styles.statVal}>84%</Text>
+                <Text style={styles.statLab}>EFFICIENCY</Text>
+            </BlurView>
+        </View>
+    );
+
+    const renderRouteItem = ({ item }) => (
+        <View style={styles.eliteCard}>
+            <View style={styles.eliteCardIcon}>
+                <Ionicons name="map-outline" size={22} color={theme.colors.primary} />
+            </View>
+            <View style={styles.eliteCardContent}>
+                <Text style={styles.eliteItemName}>{item.name}</Text>
+                <Text style={styles.eliteItemMeta}>{item.direction} • {item.stops?.length || 0} active stops</Text>
+            </View>
+            <TouchableOpacity style={styles.eliteActionBtn} onPress={() => { setSelectedRoute(item); setAssignModalVisible(true); }}>
+                <Text style={styles.eliteActionText}>ASSIGN</Text>
+            </TouchableOpacity>
+        </View>
+    );
+
+    const renderBusItem = ({ item }) => (
+        <View style={styles.eliteCard}>
+            <View style={[styles.eliteCardIcon, { backgroundColor: 'rgba(255,255,255,0.02)' }]}>
+                <Ionicons name="bus-outline" size={22} color="#FFF" />
+            </View>
+            <View style={styles.eliteCardContent}>
+                <Text style={styles.eliteItemName}>{item.busNumber}</Text>
+                <Text style={styles.eliteItemMeta}>Capacity: {item.capacity} • ID: {item.id}</Text>
+            </View>
+            <View style={[styles.statusBadge, { borderColor: item.status === 'IDLE' ? theme.colors.text.muted : theme.colors.success }]}>
+                <Text style={[styles.statusText, { color: item.status === 'IDLE' ? theme.colors.text.muted : theme.colors.success }]}>{item.status}</Text>
+            </View>
+        </View>
+    );
 
     return (
         <SafeAreaView style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.title}>Admin Dashboard</Text>
-                <TouchableOpacity onPress={logout} style={styles.logoutButton}>
-                    <Text style={styles.logoutText}>Logout</Text>
+            <StatusBar style="light" />
+            {renderHeader()}
+            
+            <View style={styles.tabWrapper}>
+                <TouchableOpacity 
+                    style={[styles.eliteTab, activeTab === 'routes' && styles.eliteTabActive]} 
+                    onPress={() => setActiveTab('routes')}
+                >
+                    <Text style={[styles.eliteTabText, activeTab === 'routes' && styles.eliteTabTextActive]}>TRANSIT ROUTES</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                    style={[styles.eliteTab, activeTab === 'buses' && styles.eliteTabActive]} 
+                    onPress={() => setActiveTab('buses')}
+                >
+                    <Text style={[styles.eliteTabText, activeTab === 'buses' && styles.eliteTabTextActive]}>FLEET ASSETS</Text>
                 </TouchableOpacity>
             </View>
 
-            <View style={styles.content}>
-                <View style={styles.actions}>
-                    <Text style={styles.subtitle}>Fleet Management</Text>
-                    <TouchableOpacity style={styles.addButton} onPress={openAddModal}>
-                        <Text style={styles.addButtonText}>+ Add Bus</Text>
+            {renderStats()}
+
+            <View style={styles.mainContent}>
+                {activeTab === 'buses' && (
+                    <TouchableOpacity style={styles.addBtn} onPress={() => setAddBusModalVisible(true)}>
+                        <Ionicons name="add" size={20} color="#000" />
+                        <Text style={styles.addBtnText}>REGISTER NEW VEHICLE</Text>
                     </TouchableOpacity>
-                </View>
+                )}
 
                 {loading ? (
-                    <ActivityIndicator size="large" color="#3b82f6" />
+                    <ActivityIndicator size="large" color={theme.colors.primary} style={{marginTop: 50}} />
                 ) : (
                     <FlatList
-                        data={buses}
-                        renderItem={renderBusItem}
-                        keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
-                        contentContainerStyle={styles.list}
-                        ListEmptyComponent={<Text style={styles.emptyText}>No buses found.</Text>}
+                        data={items}
+                        renderItem={activeTab === 'routes' ? renderRouteItem : renderBusItem}
+                        keyExtractor={item => item.id.toString()}
+                        contentContainerStyle={{ paddingBottom: 150 }}
+                        showsVerticalScrollIndicator={false}
                     />
                 )}
             </View>
 
-            <Modal
-                animationType="slide"
-                transparent={true}
-                visible={modalVisible}
-                onRequestClose={() => setModalVisible(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Add New Bus</Text>
-
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Bus Number (e.g. MP04-1234)"
-                            value={newBusNumber}
-                            onChangeText={setNewBusNumber}
+            {/* Premium Modals */}
+            <Modal visible={assignModalVisible} transparent animationType="fade">
+                <BlurView intensity={30} tint="dark" style={styles.modalOverlay}>
+                    <View style={styles.modalCard}>
+                        <Text style={styles.modalTitle}>Assign Vehicle</Text>
+                        <Text style={styles.modalSubtitle}>Route: {selectedRoute?.name}</Text>
+                        
+                        <FlatList
+                            data={buses.filter(b => b.status === 'IDLE')}
+                            keyExtractor={b => b.id.toString()}
+                            style={{ maxHeight: 250, marginVertical: 20 }}
+                            renderItem={({ item }) => (
+                                <TouchableOpacity 
+                                    style={[styles.oPill, selectedBusId === item.id && styles.oPillSelected]}
+                                    onPress={() => setSelectedBusId(item.id)}
+                                >
+                                    <Text style={[styles.oText, selectedBusId === item.id && {color: '#FFF'}]}>{item.busNumber}</Text>
+                                    {selectedBusId === item.id && <Ionicons name="checkmark-circle" size={18} color="#FFF" />}
+                                </TouchableOpacity>
+                            )}
+                            ListEmptyComponent={<Text style={styles.emptyMsg}>No idle buses available</Text>}
                         />
 
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Route Number (e.g. 12, 23)"
-                            value={newRouteNumber}
-                            onChangeText={setNewRouteNumber}
-                            keyboardType="numeric"
-                        />
-
-
-                        <View style={styles.modalActions}>
-                            <TouchableOpacity style={styles.cancelButton} onPress={() => setModalVisible(false)}>
-                                <Text style={styles.cancelButtonText}>Cancel</Text>
+                        <View style={styles.modalFooter}>
+                            <TouchableOpacity style={styles.mBtnCancel} onPress={() => setAssignModalVisible(false)}>
+                                <Text style={styles.mBtnText}>CLOSE</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.saveButton} onPress={handleSaveBus}>
-                                <Text style={styles.saveButtonText}>Save</Text>
+                            <TouchableOpacity style={styles.mBtnConfirm} onPress={handleAssign}>
+                                <Text style={[styles.mBtnText, {color: '#000'}]}>CONFIRM</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
-                </View>
+                </BlurView>
             </Modal>
 
+            {/* Add Bus Modal */}
+            <Modal visible={addBusModalVisible} transparent animationType="fade">
+                <BlurView intensity={30} tint="dark" style={styles.modalOverlay}>
+                    <View style={styles.modalCard}>
+                        <Text style={styles.modalTitle}>New Vehicle</Text>
+                        <TextInput 
+                            placeholder="Vehicle Number (e.g. ORI-01)"
+                            placeholderTextColor={theme.colors.text.muted}
+                            style={styles.input}
+                            value={newBusNumber}
+                            onChangeText={setNewBusNumber}
+                        />
+                        <View style={styles.modalFooter}>
+                            <TouchableOpacity style={styles.mBtnCancel} onPress={() => setAddBusModalVisible(false)}>
+                                <Text style={styles.mBtnText}>CANCEL</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.mBtnConfirm} onPress={handleAddBus}>
+                                <Text style={[styles.mBtnText, {color: '#000'}]}>ADD</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </BlurView>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -215,224 +247,251 @@ export default function AdminDashboardScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f1f5f9',
+        backgroundColor: theme.colors.background,
     },
     header: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        padding: 24,
-        backgroundColor: 'white',
-        borderBottomWidth: 1,
-        borderBottomColor: '#e2e8f0',
+        justifyContent: 'space-between',
+        paddingHorizontal: 25,
+        paddingTop: 60,
+        paddingBottom: 25,
     },
     title: {
-        fontSize: 24,
-        fontWeight: '800',
-        color: '#0f172a',
-        letterSpacing: -0.5,
-    },
-    logoutButton: {
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        backgroundColor: '#fee2e2',
-        borderRadius: 20,
-    },
-    logoutText: {
-        color: '#ef4444',
-        fontWeight: '700',
-        fontSize: 14,
-    },
-    content: {
-        flex: 1,
-        padding: 20,
-    },
-    actions: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 20
+        fontSize: 26,
+        fontWeight: '300',
+        color: theme.colors.text.primary,
+        letterSpacing: -1,
     },
     subtitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#334155'
+        fontSize: 12,
+        color: theme.colors.text.muted,
+        fontWeight: 'bold',
+        letterSpacing: 1,
+        marginTop: 4,
     },
-    addButton: {
-        backgroundColor: '#2563eb',
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        borderRadius: 20,
-        shadowColor: '#2563eb',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-        elevation: 3,
-    },
-    addButtonText: {
-        color: 'white',
-        fontWeight: '600',
-        fontSize: 14
-    },
-    list: {
-        paddingBottom: 20
-    },
-    card: {
-        backgroundColor: 'white',
-        padding: 20,
-        borderRadius: 20,
-        marginBottom: 16,
-        shadowColor: '#64748b',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-        elevation: 3,
-    },
-    cardHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 12
-    },
-    busNumber: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#1e293b'
-    },
-    busIconContainer: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: '#f0f9ff',
+    logoutBtn: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(255,255,255,0.03)',
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 16
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
     },
-    busIcon: {
-        fontSize: 24
+    tabWrapper: {
+        flexDirection: 'row',
+        paddingHorizontal: 25,
+        marginBottom: 25,
+        gap: 12,
     },
-    busInfo: {
-        flex: 1
+    eliteTab: {
+        flex: 1,
+        height: 48,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        borderWidth: 1,
+        borderColor: 'transparent',
     },
-    busSubtext: {
-        fontSize: 13,
-        color: '#64748b',
+    eliteTabActive: {
+        backgroundColor: theme.colors.primary + '11',
+        borderColor: theme.colors.primary,
+    },
+    eliteTabText: {
+        fontSize: 11,
+        fontWeight: '900',
+        color: theme.colors.text.muted,
+        letterSpacing: 1,
+    },
+    eliteTabTextActive: {
+        color: theme.colors.primary,
+    },
+    statsRow: {
+        flexDirection: 'row',
+        paddingHorizontal: 25,
+        marginBottom: 30,
+        gap: 15,
+    },
+    statCard: {
+        flex: 1,
+        padding: 20,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255,255,255,0.02)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
+        overflow: 'hidden',
+    },
+    statVal: {
+        fontSize: 28,
+        fontWeight: '300',
+        color: theme.colors.text.primary,
+        marginTop: 15,
+        letterSpacing: -1,
+    },
+    statLab: {
+        fontSize: 10,
+        fontWeight: '900',
+        color: theme.colors.text.muted,
+        letterSpacing: 1.5,
         marginTop: 4,
-        fontWeight: '500'
+    },
+    mainContent: {
+        flex: 1,
+        paddingHorizontal: 25,
+    },
+    addBtn: {
+        flexDirection: 'row',
+        backgroundColor: theme.colors.primary,
+        height: 54,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 25,
+        boxShadow: '0 8px 20px rgba(0, 229, 255, 0.2)',
+    },
+    addBtnText: {
+        color: '#000',
+        fontWeight: '900',
+        fontSize: 12,
+        letterSpacing: 1.5,
+        marginLeft: 10,
+    },
+    eliteCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255,255,255,0.03)',
+    },
+    eliteCardIcon: {
+        width: 48,
+        height: 48,
+        borderRadius: 14,
+        backgroundColor: 'rgba(0, 229, 255, 0.05)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 18,
+    },
+    eliteCardContent: {
+        flex: 1,
+    },
+    eliteItemName: {
+        fontSize: 17,
+        fontWeight: 'bold',
+        color: theme.colors.text.primary,
+    },
+    eliteItemMeta: {
+        fontSize: 13,
+        color: theme.colors.text.muted,
+        marginTop: 4,
+        fontWeight: '500',
+    },
+    eliteActionBtn: {
+        paddingHorizontal: 15,
+        paddingVertical: 8,
+        borderRadius: 6,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+    },
+    eliteActionText: {
+        fontSize: 11,
+        fontWeight: '900',
+        color: theme.colors.primary,
+        letterSpacing: 1,
     },
     statusBadge: {
-        paddingHorizontal: 10,
+        paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 20,
-        backgroundColor: '#f1f5f9'
-    },
-    statusActive: {
-        backgroundColor: '#dcfce7'
-    },
-    statusInactive: {
-        backgroundColor: '#f1f5f9'
+        borderWidth: 1,
     },
     statusText: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: '#475569'
-    },
-    emptyText: {
-        textAlign: 'center',
-        color: '#94a3b8',
-        marginTop: 40,
-        fontSize: 16
+        fontSize: 11,
+        fontWeight: 'bold',
     },
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(15, 23, 42, 0.6)',
+        backgroundColor: 'rgba(0,0,0,0.85)',
         justifyContent: 'center',
-        padding: 24
+        padding: 30,
     },
     modalContent: {
-        backgroundColor: 'white',
+        backgroundColor: '#1c1c1e',
         borderRadius: 24,
-        padding: 32,
-        elevation: 10,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.25,
-        shadowRadius: 16,
+        padding: 30,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
     },
     modalTitle: {
-        fontSize: 24,
-        fontWeight: '800',
-        marginBottom: 24,
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#FFF',
+        marginBottom: 25,
         textAlign: 'center',
-        color: '#0f172a'
     },
     input: {
-        backgroundColor: '#f8fafc',
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        height: 56,
         borderRadius: 12,
-        padding: 16,
-        marginBottom: 16,
+        paddingHorizontal: 20,
+        color: '#FFF',
         fontSize: 16,
-        color: '#0f172a'
-    },
-    modalActions: {
-        flexDirection: 'row',
-        gap: 16,
-        marginTop: 12
-    },
-    cancelButton: {
-        flex: 1,
-        padding: 16,
-        backgroundColor: '#f1f5f9',
-        borderRadius: 12,
-        alignItems: 'center'
-    },
-    saveButton: {
-        flex: 1,
-        padding: 16,
-        backgroundColor: '#2563eb',
-        borderRadius: 12,
-        alignItems: 'center'
-    },
-    cancelButtonText: {
-        color: '#64748b',
-        fontWeight: '600',
-        fontSize: 16
-    },
-    saveButtonText: {
-        color: 'white',
-        fontWeight: '600',
-        fontSize: 16
-    },
-    assignButton: {
-        marginTop: 16,
-        backgroundColor: '#8b5cf6',
-        paddingVertical: 12,
-        borderRadius: 12,
-        alignItems: 'center'
-    },
-    assignButtonText: {
-        color: 'white',
-        fontWeight: '600',
-        fontSize: 14
-    },
-    cardActions: {
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        marginTop: 8,
-        marginRight: 4
-    },
-    iconButton: {
-        padding: 10,
-        marginLeft: 10,
-        backgroundColor: '#f8fafc',
-        borderRadius: 12,
+        marginBottom: 20,
         borderWidth: 1,
-        borderColor: '#e2e8f0'
+        borderColor: 'rgba(255,255,255,0.1)',
     },
-    iconButtonText: {
-        fontSize: 16
-    }
+    modalFooter: {
+        flexDirection: 'row',
+        gap: 12,
+        marginTop: 10,
+    },
+    mBtnCancel: {
+        flex: 1,
+        height: 50,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderRadius: 12,
+    },
+    mBtnConfirm: {
+        flex: 1,
+        height: 50,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: theme.colors.primary,
+        borderRadius: 12,
+    },
+    mBtnText: {
+        fontWeight: 'bold',
+        fontSize: 13,
+        color: theme.colors.text.secondary,
+    },
+    modalSubtitle: {
+        fontSize: 13,
+        color: theme.colors.text.muted,
+        textAlign: 'center',
+        marginTop: 5,
+        marginBottom: 15
+    },
+    oPill: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 15,
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        borderRadius: 12,
+        marginBottom: 8,
+    },
+    oPillSelected: {
+        backgroundColor: theme.colors.primary,
+    },
+    oText: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: theme.colors.text.secondary,
+    },
 });
-

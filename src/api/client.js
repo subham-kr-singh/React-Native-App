@@ -1,5 +1,5 @@
 import axios from 'axios';
-import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const BASE_URL = 'https://bus-tracker-backend-production-1f1c.up.railway.app';
 
@@ -13,7 +13,7 @@ const client = axios.create({
 // Add a request interceptor to attach the token
 client.interceptors.request.use(
     async (config) => {
-        const token = await SecureStore.getItemAsync('userToken');
+        const token = await AsyncStorage.getItem('token');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }

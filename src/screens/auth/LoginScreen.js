@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '../../context/AuthContext';
@@ -45,79 +45,87 @@ export default function LoginScreen({ navigation }) {
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
                 style={styles.keyboardView}
             >
-                <View style={styles.contentContainer}>
-                    <View style={styles.headerContainer}>
-                        <View style={styles.iconCircle}>
-                            <Text style={styles.headerIcon}>🚍</Text>
-                        </View>
-                        <Text style={styles.title}>Bus Tracker</Text>
-                        <Text style={styles.subtitle}>Welcome back, please sign in</Text>
-                    </View>
+                <React.Fragment>
+                    <ScrollView 
+                        contentContainerStyle={styles.scrollContent}
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                    >
+                        <View style={styles.contentContainer}>
+                            <View style={styles.headerContainer}>
+                                <View style={styles.iconCircle}>
+                                    <Text style={styles.headerIcon}>🚍</Text>
+                                </View>
+                                <Text style={styles.title}>Bus Tracker</Text>
+                                <Text style={styles.subtitle}>Welcome back, please sign in</Text>
+                            </View>
 
-                    <View style={styles.formContainer}>
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.label}>Email Address</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="name@example.com"
-                                placeholderTextColor="#94a3b8"
-                                value={email}
-                                onChangeText={setEmail}
-                                autoCapitalize="none"
-                                keyboardType="email-address"
-                            />
-                        </View>
+                            <View style={styles.formContainer}>
+                                <View style={styles.inputContainer}>
+                                    <Text style={styles.label}>Email Address</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="name@example.com"
+                                        placeholderTextColor="#94a3b8"
+                                        value={email}
+                                        onChangeText={setEmail}
+                                        autoCapitalize="none"
+                                        keyboardType="email-address"
+                                    />
+                                </View>
 
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.label}>Password</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Enter your password"
-                                placeholderTextColor="#94a3b8"
-                                value={password}
-                                onChangeText={setPassword}
-                                secureTextEntry
-                            />
-                        </View>
+                                <View style={styles.inputContainer}>
+                                    <Text style={styles.label}>Password</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="Enter your password"
+                                        placeholderTextColor="#94a3b8"
+                                        value={password}
+                                        onChangeText={setPassword}
+                                        secureTextEntry
+                                    />
+                                </View>
 
-                        <TouchableOpacity
-                            style={styles.button}
-                            onPress={() => handleLogin()}
-                            disabled={isLoading}
-                            activeOpacity={0.8}
-                        >
-                            {isLoading ? (
-                                <ActivityIndicator color="white" />
-                            ) : (
-                                <Text style={styles.buttonText}>Sign In</Text>
-                            )}
-                        </TouchableOpacity>
-                    </View>
+                                <TouchableOpacity
+                                    style={styles.button}
+                                    onPress={() => handleLogin()}
+                                    disabled={isLoading}
+                                    activeOpacity={0.8}
+                                >
+                                    {isLoading ? (
+                                        <ActivityIndicator color="white" />
+                                    ) : (
+                                        <Text style={styles.buttonText}>Sign In</Text>
+                                    )}
+                                </TouchableOpacity>
+                            </View>
 
-                    <View style={styles.footer}>
-                        <Text style={styles.footerText}>Offline Demo Access (Backend Down)</Text>
-                        <View style={styles.demoRow}>
-                            <TouchableOpacity
-                                style={[styles.demoChip, activeDemo === 'student' && styles.demoChipActive]}
-                                onPress={() => { fillDemo('student'); loginDemo('STUDENT'); }}
-                            >
-                                <Text style={[styles.demoText, activeDemo === 'student' && styles.demoTextActive]}>🎓 Student</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.demoChip, activeDemo === 'driver' && styles.demoChipActive]}
-                                onPress={() => { fillDemo('driver'); loginDemo('DRIVER'); }}
-                            >
-                                <Text style={[styles.demoText, activeDemo === 'driver' && styles.demoTextActive]}>👮 Driver</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.demoChip, activeDemo === 'admin' && styles.demoChipActive]}
-                                onPress={() => { fillDemo('admin'); loginDemo('ADMIN'); }}
-                            >
-                                <Text style={[styles.demoText, activeDemo === 'admin' && styles.demoTextActive]}>👔 Admin</Text>
-                            </TouchableOpacity>
+                            <View style={styles.footer}>
+                                <Text style={styles.footerText}>Offline Demo Access (Backend Down)</Text>
+                                <View style={styles.demoRow}>
+                                    <TouchableOpacity
+                                        style={[styles.demoChip, activeDemo === 'student' && styles.demoChipActive]}
+                                        onPress={() => { fillDemo('student'); loginDemo('STUDENT'); }}
+                                    >
+                                        <Text style={[styles.demoText, activeDemo === 'student' && styles.demoTextActive]}>🎓 Student</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.demoChip, activeDemo === 'driver' && styles.demoChipActive]}
+                                        onPress={() => { fillDemo('driver'); loginDemo('DRIVER'); }}
+                                    >
+                                        <Text style={[styles.demoText, activeDemo === 'driver' && styles.demoTextActive]}>👮 Driver</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.demoChip, activeDemo === 'admin' && styles.demoChipActive]}
+                                        onPress={() => { fillDemo('admin'); loginDemo('ADMIN'); }}
+                                    >
+                                        <Text style={[styles.demoText, activeDemo === 'admin' && styles.demoTextActive]}>👔 Admin</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
                         </View>
-                    </View>
-                </View>
+                    </ScrollView>
+                </React.Fragment>
             </KeyboardAvoidingView>
         </SafeAreaView>
     );
